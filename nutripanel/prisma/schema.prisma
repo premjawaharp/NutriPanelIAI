@@ -1,7 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// User deletion policy:
+// - Reference User with @relation + onDelete: Cascade (owned rows) or SetNull (optional attribution).
+// - Avoid raw String user ids without FKs — deletes won’t cascade.
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +9,117 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
+enum IngredientSourceType {
+  USDA
+  CUSTOM
+  INTERNAL
+}
+
+model User {
+  id            String          @id
+  email         String          @unique
+  firstName     String?
+  lastName      String?
+  role          UserRole        @default(USER)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  subscriptions Subscription[]
+  recipes       Recipe[]
+  auditEvents   AuditEvent[]
+  /// User-owned ingredients; deleting a user cascades to their ingredients.
+  ingredientsCreated Ingredient[] @relation("IngredientCreatedBy")
+}
+
+model Subscription {
+  id                   String               @id @default(cuid())
+  userId               String
+  stripeCustomerId     String?              @unique
+  stripeSubscriptionId String?              @unique
+  stripePriceId        String?
+  status               SubscriptionStatus?
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Ingredient {
+  id               String               @id @default(cuid())
+  name             String
+  sourceType       IngredientSourceType
+  sourceRef        String?
+  brandName        String?
+  createdByUserId  String
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  createdByUser    User                 @relation("IngredientCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  nutrientProfile  NutrientProfile?
+
+  @@unique([createdByUserId, sourceType, sourceRef], map: "ingredient_user_source_ref_key")
+}
+
+model NutrientProfile {
+  id             String      @id @default(cuid())
+  ingredientId   String      @unique
+  caloriesKcal   Decimal     @default(0)
+  fatG           Decimal     @default(0)
+  saturatedG     Decimal     @default(0)
+  transG         Decimal     @default(0)
+  carbsG         Decimal     @default(0)
+  fibreG         Decimal     @default(0)
+  sugarsG        Decimal     @default(0)
+  proteinG       Decimal     @default(0)
+  cholesterolMg  Decimal     @default(0)
+  sodiumMg       Decimal     @default(0)
+  potassiumMg    Decimal     @default(0)
+  calciumMg      Decimal     @default(0)
+  ironMg         Decimal     @default(0)
+  vitaminDmcg    Decimal     @default(0)
+  basis          String      @default("PER_100G")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  ingredient     Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+}
+
+model Recipe {
+  id            String      @id @default(cuid())
+  userId        String
+  name          String
+  servingsCount Int         @default(1)
+  batchYieldG   Decimal?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditEvent {
+  id           String    @id @default(cuid())
+  userId       String
+  action       String
+  entityType   String
+  entityId     String
+  metadataJson Json?
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
