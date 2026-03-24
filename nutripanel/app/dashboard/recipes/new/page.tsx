@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { CfiaNutritionFactsTable } from "@/components/CfiaNutritionFactsTable";
 
 type IngredientRow = {
   id: string;
@@ -17,6 +18,70 @@ type SelectedIngredient = {
   grams: string;
 };
 
+type NutritionTotals = {
+  caloriesKcal: number;
+  fatG: number;
+  saturatedG: number;
+  transG: number;
+  carbsG: number;
+  fibreG: number;
+  sugarsG: number;
+  proteinG: number;
+  cholesterolMg: number;
+  sodiumMg: number;
+  potassiumMg: number;
+  calciumMg: number;
+  ironMg: number;
+  vitaminDmcg: number;
+};
+
+type CfiaRoundedNutrients = {
+  calories: number;
+  fatG: number;
+  saturatedG: number;
+  transG: number;
+  carbsG: number;
+  fibreG: number;
+  sugarsG: number;
+  proteinG: number;
+  cholesterolMg: number;
+  sodiumMg: number;
+  potassiumMg: number;
+  calciumMg: number;
+  ironMg: number;
+  vitaminDmcg: number;
+};
+
+type CfiaDailyValuePercent = {
+  fat: number;
+  saturatedPlusTrans: number;
+  fibre: number;
+  sugars: number;
+  sodium: number;
+  potassium: number;
+  calcium: number;
+  iron: number;
+};
+
+type CfiaLabel = {
+  perServing: CfiaRoundedNutrients;
+  per100g: CfiaRoundedNutrients;
+  dailyValuePercent: CfiaDailyValuePercent;
+  servingSizeG: number;
+  referenceAmountG: number;
+};
+
+type RecipeNutrition = {
+  recipeId: string;
+  servingsCount: number;
+  totalInputGrams: number;
+  effectiveYieldG: number;
+  perBatch: NutritionTotals;
+  per100g: NutritionTotals;
+  perServing: NutritionTotals;
+  cfiaLabel?: CfiaLabel;
+};
+
 function getErrorMessage(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback;
 }
@@ -29,6 +94,7 @@ export default function NewRecipePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [nutrition, setNutrition] = useState<RecipeNutrition | null>(null);
 
   const searchParams = useSearchParams();
   const ingredientIdsFromQuery = useMemo(() => {
@@ -86,6 +152,7 @@ export default function NewRecipePage() {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setNutrition(null);
     if (!name.trim()) {
       setError("Recipe name is required.");
       return;
@@ -118,6 +185,7 @@ export default function NewRecipePage() {
         throw new Error(data.error || "Failed to create recipe");
       }
       setSuccess(`Recipe created: ${data.recipe?.name ?? "Untitled"}`);
+      setNutrition((data.nutrition as RecipeNutrition) ?? null);
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Failed to create recipe"));
     } finally {
@@ -193,6 +261,45 @@ export default function NewRecipePage() {
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
           {success && <p className="text-green-700 text-sm">{success}</p>}
+
+          {nutrition && (
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+              <p className="text-sm font-semibold text-green-900">
+                Nutrition calculated
+              </p>
+              <p className="mt-1 text-xs text-green-800">
+                Yield: {nutrition.effectiveYieldG} g · Servings: {nutrition.servingsCount}
+              </p>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="rounded-md bg-white p-2 border border-green-100">
+                  <p className="font-medium text-gray-800">Per batch</p>
+                  <p>Calories: {nutrition.perBatch.caloriesKcal}</p>
+                  <p>Protein: {nutrition.perBatch.proteinG} g</p>
+                  <p>Carbs: {nutrition.perBatch.carbsG} g</p>
+                  <p>Fat: {nutrition.perBatch.fatG} g</p>
+                </div>
+                <div className="rounded-md bg-white p-2 border border-green-100">
+                  <p className="font-medium text-gray-800">Per 100g</p>
+                  <p>Calories: {nutrition.per100g.caloriesKcal}</p>
+                  <p>Protein: {nutrition.per100g.proteinG} g</p>
+                  <p>Carbs: {nutrition.per100g.carbsG} g</p>
+                  <p>Fat: {nutrition.per100g.fatG} g</p>
+                </div>
+                <div className="rounded-md bg-white p-2 border border-green-100">
+                  <p className="font-medium text-gray-800">Per serving</p>
+                  <p>Calories: {nutrition.perServing.caloriesKcal}</p>
+                  <p>Protein: {nutrition.perServing.proteinG} g</p>
+                  <p>Carbs: {nutrition.perServing.carbsG} g</p>
+                  <p>Fat: {nutrition.perServing.fatG} g</p>
+                </div>
+              </div>
+              {nutrition.cfiaLabel && (
+                <div className="mt-4">
+                  <CfiaNutritionFactsTable label={nutrition.cfiaLabel} />
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-3">
             <button

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getRecipeNutrition } from "@/lib/recipe-nutrition";
 
 type RecipeInputItem = {
   ingredientId: string;
@@ -36,7 +37,13 @@ export async function GET() {
         },
       },
     });
-    return NextResponse.json({ recipes });
+    const withNutrition = await Promise.all(
+      recipes.map(async (recipe) => ({
+        ...recipe,
+        nutrition: await getRecipeNutrition(recipe.id, userId),
+      }))
+    );
+    return NextResponse.json({ recipes: withNutrition });
   } catch (e) {
     console.error("[recipes:get]", e);
     return NextResponse.json({ error: "Failed to list recipes" }, { status: 500 });
@@ -156,7 +163,8 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ ok: true, recipe }, { status: 201 });
+    const nutrition = await getRecipeNutrition(recipe.id, userId);
+    return NextResponse.json({ ok: true, recipe, nutrition }, { status: 201 });
   } catch (e) {
     console.error("[recipes:create]", e);
     return NextResponse.json({ error: "Failed to create recipe" }, { status: 500 });
